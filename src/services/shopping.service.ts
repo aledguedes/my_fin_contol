@@ -133,10 +133,11 @@ export class ShoppingService {
   completeActiveList(): Observable<any> {
     const list = this.activeList();
     if (!list) return of(null);
-    return this.http.post(`${this.apiUrl}/lists/${list.id}/complete`, {}).pipe(
+    // Fix: Explicitly type the HTTP post request to avoid type inference issues.
+    return this.http.post<object>(`${this.apiUrl}/lists/${list.id}/complete`, {}).pipe(
       tap(() => {
         this.shoppingLists.update(lists =>
-          lists.map(l => l.id === list.id ? { ...l, status: 'finalizada' } : l)
+          lists.map(l => l.id === list.id ? { ...l, status: 'completed' } : l)
         );
         this.setActiveList(null);
         this.notificationService.show(`Lista "${list.name}" finalizada!`, 'success');
@@ -154,7 +155,8 @@ export class ShoppingService {
 
   updateShoppingCategory(category: ShoppingCategory): Observable<ShoppingCategory> {
     return this.http.put<ShoppingCategory>(`${this.apiUrl}/categories/${category.id}`, category).pipe(
-      tap(updatedCategory => {
+      // Fix: Explicitly type the response to resolve property access errors.
+      tap((updatedCategory: ShoppingCategory) => {
         this.shoppingCategories.update(c => c.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat));
       })
     );
@@ -219,7 +221,8 @@ export class ShoppingService {
     if (!activeId) return throwError(() => new Error('No active list'));
 
     return this.http.post<CartItem[]>(`${this.apiUrl}/lists/${activeId}/items`, itemsData).pipe(
-      tap(newItems => {
+      // Fix: Explicitly type the response to resolve property access errors.
+      tap((newItems: CartItem[]) => {
         this.shoppingLists.update(lists => lists.map(l => {
           if (l.id === activeId) {
             return { ...l, items: [...l.items, ...newItems] };

@@ -46,7 +46,7 @@ export class ShoppingCartComponent {
 
     effect(() => {
       const currentList = this.localList();
-      if (currentList && currentList.status === 'andamento') {
+      if (currentList && currentList.status === 'pending') {
         localStorage.setItem(`shopping_list_draft_${currentList.id}`, JSON.stringify(currentList));
       }
     });

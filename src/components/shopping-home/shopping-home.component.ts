@@ -38,8 +38,8 @@ export class ShoppingHomeComponent implements OnInit {
   
   sortedShoppingLists = computed(() => {
     return this.shoppingService.shoppingLists().slice().sort((a, b) => {
-      if (a.status === 'andamento' && b.status === 'finalizada') return -1;
-      if (a.status === 'finalizada' && b.status === 'andamento') return 1;
+      if (a.status === 'pending' && b.status === 'completed') return -1;
+      if (a.status === 'completed' && b.status === 'pending') return 1;
       const dateA = new Date(a.completedAt || a.createdAt).getTime();
       const dateB = new Date(b.completedAt || b.createdAt).getTime();
       return dateB - dateA;
@@ -61,14 +61,14 @@ export class ShoppingHomeComponent implements OnInit {
     this.categoryForm = this.fb.group({ name: ['', Validators.required] });
     this.productForm = this.fb.group({
       name: ['', Validators.required],
-      categoryId: ['', Validators.required],
+      categoryId: [null],
       unit: ['un' as ProductUnit, Validators.required],
     });
     this.editCategoryForm = this.fb.group({ name: ['', Validators.required] });
     this.editProductForm = this.fb.group({
       id: [''],
       name: ['', Validators.required],
-      categoryId: ['', Validators.required],
+      categoryId: [null],
       unit: ['un' as ProductUnit, Validators.required],
     });
   }
@@ -206,7 +206,7 @@ export class ShoppingHomeComponent implements OnInit {
     this.loadingAction.set('add-product');
     this.shoppingService.addProduct(this.productForm.value).pipe(
       finalize(() => this.loadingAction.set(null))
-    ).subscribe(() => this.productForm.reset({ unit: 'un' }));
+    ).subscribe(() => this.productForm.reset({ unit: 'un', categoryId: null }));
   }
   
   deleteProduct(id: string): void {
@@ -220,7 +220,12 @@ export class ShoppingHomeComponent implements OnInit {
   
   startEditProduct(product: Product): void {
     this.editingProductId.set(product.id);
-    this.editProductForm.setValue(product);
+    this.editProductForm.setValue({
+      id: product.id,
+      name: product.name,
+      categoryId: product.categoryId ?? null,
+      unit: product.unit
+    });
   }
   cancelEditProduct(): void { this.editingProductId.set(null); }
   

@@ -12,13 +12,19 @@ export const productUnits: { value: ProductUnit, label: string }[] = [
 export interface ShoppingCategory {
   id: string;
   name: string;
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Product {
   id: string;
   name: string;
-  categoryId: string;
+  categoryId?: string;
   unit: ProductUnit;
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CartItem {
@@ -28,7 +34,7 @@ export interface CartItem {
   quantity: number;
   price: number;
   checked: boolean;
-  categoryId: string; // Denormalized for easier grouping
+  categoryId?: string; // Denormalized for easier grouping
   unit: ProductUnit; // Denormalized for easier display
 }
 
@@ -37,7 +43,9 @@ export interface ShoppingList {
   name: string;
   createdAt: string; // YYYY-MM-DD
   items: CartItem[];
-  status: 'andamento' | 'finalizada';
+  status: 'pending' | 'completed';
   completedAt?: string; // YYYY-MM-DD
   totalAmount?: number;
+  userId?: string;
+  updatedAt?: string;
 }
