@@ -16,7 +16,8 @@ import { CurrencyPipe } from '@angular/common';
 })
 export class CurrencyMaskDirective implements ControlValueAccessor {
   private el = inject(ElementRef<HTMLInputElement>);
-  private currencyPipe = inject(CurrencyPipe);
+  // Fix: Explicitly type the injected CurrencyPipe to resolve property access errors.
+  private currencyPipe: CurrencyPipe = inject(CurrencyPipe);
 
   private onChange: (value: number | null) => void = () => {};
   private onTouched: () => void = () => {};

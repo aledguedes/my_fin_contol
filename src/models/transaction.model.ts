@@ -54,3 +54,13 @@ export interface InstallmentPlan {
     status: 'ativo' | 'concluído' | 'atrasado';
     category: Category;
 }
+
+// Fix: Add MonthlyView interface to be exported as a model
+export interface MonthlyView {
+  transactions: Transaction[];
+  summary: {
+    totalRevenue: number;
+    totalExpense: number;
+    balance: number;
+  }
+}

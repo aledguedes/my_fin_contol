@@ -1,6 +1,6 @@
-import { Component, ChangeDetectionStrategy, input, output, effect } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, output, effect, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { Transaction, PaymentMethod } from '../../models/transaction.model';
 import { CurrencyMaskDirective } from '../../directives/currency-mask.directive';
@@ -9,111 +9,134 @@ import { CurrencyMaskDirective } from '../../directives/currency-mask.directive'
   selector: 'app-transaction-form',
   templateUrl: './transaction-form.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, CurrencyMaskDirective],
+  imports: [CommonModule, ReactiveFormsModule, CurrencyMaskDirective],
 })
-export class TransactionFormComponent {
+export class TransactionFormComponent implements OnInit {
   transactionToEdit = input<Partial<Transaction> | null>(null);
+  isSaving = input<boolean>(false);
   closeModal = output<void>();
   saveTransaction = output<Transaction>();
 
-  model: Partial<Transaction> & { startDate?: string; totalInstallments?: number; installmentAmount?: number } = this.resetModel();
+  dataService = inject(DataService);
+  private fb = inject(FormBuilder);
+  
+  transactionForm!: FormGroup;
 
   paymentMethods: PaymentMethod[] = ['Dinheiro', 'Débito', 'Crédito', 'Carnê', 'Boleto', 'Transferência', 'Financiamento', 'Empréstimo'];
 
-  constructor(public dataService: DataService) {
+  constructor() {
     effect(() => {
       const data = this.transactionToEdit();
-      if (data) {
-        const modelData: typeof this.model = {
-          ...this.resetModel(),
-          ...data,
-          startDate: (data as Transaction).installments?.startDate || this.resetModel().startDate,
-          totalInstallments: (data as Transaction).installments?.totalInstallments || this.resetModel().totalInstallments,
-          isRecurrent: data.isRecurrent ?? false,
-        };
-        if (data.isInstallment && data.amount && data.installments?.totalInstallments) {
-          modelData.installmentAmount = parseFloat((data.amount / data.installments.totalInstallments).toFixed(2));
-        }
-        this.model = modelData;
+      if (this.transactionForm) {
+        this.buildForm(data);
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    this.buildForm(this.transactionToEdit());
+  }
+
+  private buildForm(data: Partial<Transaction> | null = null): void {
+    const isInstallment = data?.isInstallment ?? false;
+    
+    this.transactionForm = this.fb.group({
+      id: [data?.id ?? null],
+      type: [data?.type ?? 'expense', Validators.required],
+      description: [data?.description ?? '', Validators.required],
+      amount: [data?.amount ?? null, !isInstallment ? Validators.required : null],
+      categoryId: [data?.categoryId ?? null, Validators.required],
+      paymentMethod: [data?.paymentMethod ?? 'Débito', Validators.required],
+      date: [data?.date ?? new Date().toISOString().split('T')[0], Validators.required],
+      isInstallment: [isInstallment],
+      isRecurrent: [data?.isRecurrent ?? false],
+      installments: this.fb.group({
+        installmentAmount: [isInstallment && data?.amount && data.installments?.totalInstallments ? parseFloat((data.amount / data.installments.totalInstallments).toFixed(2)) : null, isInstallment ? Validators.required : null],
+        totalInstallments: [data?.installments?.totalInstallments ?? 2, isInstallment ? [Validators.required, Validators.min(2)] : null],
+        startDate: [data?.installments?.startDate ?? new Date().toISOString().split('T')[0]],
+        paidInstallments: [data?.installments?.paidInstallments ?? 0]
+      })
+    });
+    this.setupFormListeners();
+  }
+
+  private setupFormListeners(): void {
+    this.transactionForm.get('type')?.valueChanges.subscribe(type => {
+      this.transactionForm.get('categoryId')?.reset();
+      if (type === 'revenue') {
+        this.transactionForm.patchValue({ isInstallment: false, isRecurrent: false, paymentMethod: 'Transferência' });
       } else {
-        this.model = this.resetModel();
+        this.transactionForm.patchValue({ paymentMethod: 'Débito' });
       }
     });
 
-    effect(() => {
-      if (this.model.isInstallment) {
-        const numInstallments = this.model.totalInstallments ?? 0;
-        const installmentAmt = this.model.installmentAmount ?? 0;
+    this.transactionForm.get('isInstallment')?.valueChanges.subscribe(isInstallment => {
+      if (isInstallment) {
+        this.transactionForm.get('isRecurrent')?.setValue(false, { emitEvent: false });
+      }
+      this.updateInstallmentValidators();
+    });
+
+    this.transactionForm.get('isRecurrent')?.valueChanges.subscribe(isRecurrent => {
+      if (isRecurrent) {
+        this.transactionForm.get('isInstallment')?.setValue(false, { emitEvent: false });
+      }
+    });
+
+    (this.transactionForm.get('installments') as FormGroup).valueChanges.subscribe(value => {
+      if (this.transactionForm.get('isInstallment')?.value) {
+        const numInstallments = value.totalInstallments ?? 0;
+        const installmentAmt = value.installmentAmount ?? 0;
         if (numInstallments > 0 && installmentAmt > 0) {
-          this.model.amount = parseFloat((installmentAmt * numInstallments).toFixed(2));
+          const totalAmount = parseFloat((installmentAmt * numInstallments).toFixed(2));
+          this.transactionForm.get('amount')?.setValue(totalAmount, { emitEvent: false });
         }
       }
     });
   }
 
-  private resetModel(): Partial<Transaction> & { startDate?: string; totalInstallments?: number; installmentAmount?: number } {
-    return {
-      type: 'expense',
-      amount: undefined,
-      date: new Date().toISOString().split('T')[0],
-      description: '',
-      categoryId: undefined,
-      paymentMethod: 'Débito',
-      isInstallment: false,
-      isRecurrent: false,
-      startDate: new Date().toISOString().split('T')[0],
-      totalInstallments: 2,
-      installmentAmount: undefined,
-    };
-  }
+  private updateInstallmentValidators(): void {
+    const isInstallment = this.transactionForm.get('isInstallment')?.value;
+    const installmentGroup = this.transactionForm.get('installments') as FormGroup;
+    const installmentAmountControl = installmentGroup.get('installmentAmount');
+    const totalInstallmentsControl = installmentGroup.get('totalInstallments');
+    const amountControl = this.transactionForm.get('amount');
 
-  onTypeChange(): void {
-    if (this.model.type === 'revenue') {
-      this.model.isInstallment = false;
-      this.model.isRecurrent = false;
-      this.model.paymentMethod = 'Transferência'; // Default for revenue
+    if (isInstallment) {
+        installmentAmountControl?.setValidators([Validators.required, Validators.min(0.01)]);
+        totalInstallmentsControl?.setValidators([Validators.required, Validators.min(2)]);
+        amountControl?.clearValidators();
     } else {
-      // When switching back to expense, reset to a common default
-      this.model.paymentMethod = 'Débito';
+        installmentAmountControl?.clearValidators();
+        totalInstallmentsControl?.clearValidators();
+        amountControl?.setValidators([Validators.required, Validators.min(0.01)]);
     }
-    // Also reset category selection as the list changes
-    this.model.categoryId = undefined;
-  }
-
-  onInstallmentChange(): void {
-    if (this.model.isInstallment) {
-      this.model.isRecurrent = false;
-    } else {
-      this.model.installmentAmount = undefined;
-    }
-  }
-
-  onRecurrentChange(): void {
-    if (this.model.isRecurrent) {
-      this.model.isInstallment = false;
-    }
+    installmentAmountControl?.updateValueAndValidity();
+    totalInstallmentsControl?.updateValueAndValidity();
+    amountControl?.updateValueAndValidity();
   }
 
   onSubmit(): void {
-    if (!this.model.amount || !this.model.categoryId || !this.model.description) {
-      alert('Por favor, preencha todos os campos obrigatórios.');
+    if (this.transactionForm.invalid) {
+      this.transactionForm.markAllAsTouched();
       return;
     }
 
+    const formValue = this.transactionForm.getRawValue();
     const transactionData: Transaction = {
-      id: this.model.id || '', // Will be set by service if new
-      type: this.model.type!,
-      amount: this.model.amount,
-      date: this.model.date!,
-      description: this.model.description,
-      categoryId: this.model.categoryId,
-      paymentMethod: this.model.paymentMethod!,
-      isInstallment: this.model.isInstallment!,
-      isRecurrent: this.model.isRecurrent,
-      installments: this.model.isInstallment ? {
-        totalInstallments: this.model.totalInstallments || 2,
-        paidInstallments: this.model.installments?.paidInstallments || 0,
-        startDate: this.model.startDate!
+      id: formValue.id || undefined!,
+      type: formValue.type,
+      amount: formValue.amount,
+      date: formValue.date,
+      description: formValue.description,
+      categoryId: formValue.categoryId,
+      paymentMethod: formValue.paymentMethod,
+      isInstallment: formValue.isInstallment,
+      isRecurrent: formValue.isRecurrent,
+      installments: formValue.isInstallment ? {
+        totalInstallments: formValue.installments.totalInstallments,
+        paidInstallments: formValue.installments.paidInstallments,
+        startDate: formValue.installments.startDate
       } : undefined
     };
     

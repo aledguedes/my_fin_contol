@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, computed, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DataService } from '../../services/data.service';
 import { InstallmentPlan } from '../../models/transaction.model';
@@ -12,13 +12,12 @@ type FilterStatus = 'todos' | 'ativo' | 'atrasado' | 'concluído';
   imports: [CommonModule],
 })
 export class InstallmentsComponent {
+  dataService = inject(DataService);
   
   filterStatus = signal<FilterStatus>('ativo');
-
-  constructor(public dataService: DataService) {}
   
   filteredPlans = computed(() => {
-    const plans = this.dataService.getAllInstallmentPlans();
+    const plans = this.dataService.allInstallmentPlans();
     const filter = this.filterStatus();
 
     if (filter === 'todos') {

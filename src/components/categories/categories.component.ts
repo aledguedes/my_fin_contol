@@ -1,34 +1,38 @@
-import { Component, ChangeDetectionStrategy, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
-import { Category } from '../../models/transaction.model';
+import { finalize } from 'rxjs';
 
 @Component({
   selector: 'app-categories',
   templateUrl: './categories.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule],
 })
 export class CategoriesComponent {
-  newCategoryName = signal('');
-  newCategoryType = signal<'revenue' | 'expense'>('expense');
+  dataService = inject(DataService);
+  isSubmitting = signal(false);
 
-  constructor(public dataService: DataService) {}
+  categoryForm = new FormGroup({
+    name: new FormControl('', [Validators.required]),
+    type: new FormControl<'revenue' | 'expense'>('expense', [Validators.required]),
+  });
 
   addCategory(): void {
-    const name = this.newCategoryName().trim();
-    if (name) {
-      this.dataService.addCategory({ name, type: this.newCategoryType() });
-      this.newCategoryName.set('');
+    if (this.categoryForm.invalid) {
+      return;
     }
-  }
-
-  getRevenueCategories() {
-    return this.dataService.allCategories().filter(c => c.type === 'revenue');
-  }
-
-  getExpenseCategories() {
-    return this.dataService.allCategories().filter(c => c.type === 'expense');
+    this.isSubmitting.set(true);
+    const { name, type } = this.categoryForm.getRawValue();
+    if (name && type) {
+      this.dataService.addCategory({ name, type }).pipe(
+        finalize(() => this.isSubmitting.set(false))
+      ).subscribe({
+        next: () => {
+          this.categoryForm.reset({ name: '', type: 'expense' });
+        }
+      });
+    }
   }
 }

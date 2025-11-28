@@ -1,49 +1,45 @@
-import { Component, ChangeDetectionStrategy, output, signal, computed } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal, computed, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
 import { ShoppingCartComponent } from '../shopping-cart/shopping-cart.component';
 import { ShoppingService } from '../../services/shopping.service';
 import { ShoppingList, ShoppingCategory, Product, ProductUnit, productUnits } from '../../models/shopping.model';
+import { UiService } from '../../services/ui.service';
+import { Transaction } from '../../models/transaction.model';
+import { finalize } from 'rxjs';
 
 @Component({
   selector: 'app-shopping-home',
   templateUrl: './shopping-home.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ShoppingCartComponent, FormsModule],
+  imports: [CommonModule, ShoppingCartComponent, ReactiveFormsModule],
 })
-export class ShoppingHomeComponent {
-  completePurchase = output<{ total: number; name: string }>();
+export class ShoppingHomeComponent implements OnInit {
+  private uiService = inject(UiService);
+  private fb = inject(FormBuilder);
+  shoppingService = inject(ShoppingService);
   
-  // Expose to template
   productUnits = productUnits;
-
-  // View management
   view = signal<'dashboard' | 'categories' | 'products'>('dashboard');
-
-  // Modal state for creating a list
   isCreateListModalOpen = signal(false);
-  newListName = signal('');
-  
-  // Category management state
-  newCategoryName = signal('');
   editingCategoryId = signal<string | null>(null);
-  editingCategoryName = signal('');
-  
-  // Product management state
-  newProductName = signal('');
-  newProductCategoryId = signal('');
-  newProductUnit = signal<ProductUnit>('un');
   editingProductId = signal<string | null>(null);
-  // FIX: The Product type already includes 'unit', so the intersection was redundant.
-  editingProduct = signal<Product | null>(null);
+  expandedCategoryIds = signal<string[]>([]);
+  preSelectedProductIds = signal<string[]>([]);
   
-  constructor(public shoppingService: ShoppingService) {}
+  // Loading states
+  loadingAction = signal<string | null>(null); // e.g., 'create-list', 'delete-list-ID', 'add-category'
+
+  createListForm!: FormGroup;
+  categoryForm!: FormGroup;
+  productForm!: FormGroup;
+  editCategoryForm!: FormGroup;
+  editProductForm!: FormGroup;
   
   sortedShoppingLists = computed(() => {
     return this.shoppingService.shoppingLists().slice().sort((a, b) => {
       if (a.status === 'andamento' && b.status === 'finalizada') return -1;
       if (a.status === 'finalizada' && b.status === 'andamento') return 1;
-      
       const dateA = new Date(a.completedAt || a.createdAt).getTime();
       const dateB = new Date(b.completedAt || b.createdAt).getTime();
       return dateB - dateA;
@@ -60,44 +56,107 @@ export class ShoppingHomeComponent {
       return grouped.filter(g => g.products.length > 0);
   });
 
+  ngOnInit(): void {
+    this.createListForm = this.fb.group({ name: ['', Validators.required] });
+    this.categoryForm = this.fb.group({ name: ['', Validators.required] });
+    this.productForm = this.fb.group({
+      name: ['', Validators.required],
+      categoryId: ['', Validators.required],
+      unit: ['un' as ProductUnit, Validators.required],
+    });
+    this.editCategoryForm = this.fb.group({ name: ['', Validators.required] });
+    this.editProductForm = this.fb.group({
+      id: [''],
+      name: ['', Validators.required],
+      categoryId: ['', Validators.required],
+      unit: ['un' as ProductUnit, Validators.required],
+    });
+  }
+
+  openCreateListModal(): void {
+    this.preSelectedProductIds.set([]);
+    this.isCreateListModalOpen.set(true);
+  }
+
+  closeCreateListModal(): void {
+    this.isCreateListModalOpen.set(false);
+    this.preSelectedProductIds.set([]);
+  }
+
+  togglePreselectedProduct(productId: string): void {
+    this.preSelectedProductIds.update(ids => {
+      const set = new Set(ids);
+      if (set.has(productId)) {
+        set.delete(productId);
+      } else {
+        set.add(productId);
+      }
+      return Array.from(set);
+    });
+  }
+
+  isProductPreSelected(productId: string): boolean {
+    return this.preSelectedProductIds().includes(productId);
+  }
+
+  isCategoryExpanded(categoryId: string): boolean {
+    return this.expandedCategoryIds().includes(categoryId);
+  }
+
+  toggleCategory(categoryId: string): void {
+    this.expandedCategoryIds.update(ids => {
+      if (ids.includes(categoryId)) {
+        return ids.filter(id => id !== categoryId);
+      } else {
+        return [...ids, categoryId];
+      }
+    });
+  }
+
   handleCompletePurchase(): void {
     const activeList = this.shoppingService.activeList();
     if (!activeList) return;
-
-    const eventPayload = {
-      total: this.shoppingService.total(),
-      name: activeList.name,
-    };
-    
-    this.shoppingService.completeActiveList();
-    this.completePurchase.emit(eventPayload);
+    this.loadingAction.set('complete-purchase');
+    this.shoppingService.completeActiveList().pipe(
+      finalize(() => this.loadingAction.set(null))
+    ).subscribe(() => {
+      const purchaseDetails: Partial<Transaction> = {
+        type: 'expense',
+        amount: this.shoppingService.total(),
+        description: `Compras: ${activeList.name}`,
+        date: new Date().toISOString().split('T')[0],
+        paymentMethod: 'Débito',
+      };
+      this.uiService.openTransactionModal(purchaseDetails);
+    });
   }
   
-  trackById(index: number, item: ShoppingCategory | ShoppingList | Product): string {
-    return item.id;
-  }
-
-  getUnitLabel(unitValue: ProductUnit | undefined): string {
-    if (!unitValue) return '';
-    return this.productUnits.find(u => u.value === unitValue)?.label ?? unitValue;
-  }
-  
-  selectList(listId: string): void {
-    this.shoppingService.setActiveList(listId);
-  }
+  trackById(index: number, item: ShoppingCategory | ShoppingList | Product): string { return item.id; }
+  getUnitLabel(unitValue: ProductUnit): string { return this.productUnits.find(u => u.value === unitValue)?.label ?? unitValue; }
+  selectList(listId: string): void { this.shoppingService.setActiveList(listId); }
 
   createList(): void {
-    const name = this.newListName().trim();
-    if (name) {
-      const newList = this.shoppingService.createList(name);
+    if (this.createListForm.invalid) return;
+    this.loadingAction.set('create-list');
+    const listName = this.createListForm.value.name;
+    const initialItems = this.preSelectedProductIds();
+
+    this.shoppingService.createList(listName, initialItems).pipe(
+      finalize(() => this.loadingAction.set(null))
+    ).subscribe(newList => {
       this.shoppingService.setActiveList(newList.id);
-      this.newListName.set('');
-      this.isCreateListModalOpen.set(false);
-    }
+      this.createListForm.reset();
+      this.closeCreateListModal();
+    });
   }
 
   deleteList(listId: string): void {
-    this.shoppingService.deleteList(listId);
+    if (confirm('Tem certeza que deseja excluir esta lista?')) {
+      this.loadingAction.set(`delete-list-${listId}`);
+      this.shoppingService.deleteList(listId).pipe(
+        finalize(() => this.loadingAction.set(null))
+      ).subscribe();
+    }
   }
 
   goBackToDashboard(): void {
@@ -105,74 +164,71 @@ export class ShoppingHomeComponent {
     this.view.set('dashboard');
   }
   
-  // --- Category Management Methods ---
   addCategory(): void {
-    const name = this.newCategoryName().trim();
-    if (name) {
-      this.shoppingService.addShoppingCategory(name);
-      this.newCategoryName.set('');
-    }
+    if (this.categoryForm.invalid) return;
+    this.loadingAction.set('add-category');
+    this.shoppingService.addShoppingCategory(this.categoryForm.value.name).pipe(
+      finalize(() => this.loadingAction.set(null))
+    ).subscribe(() => this.categoryForm.reset());
   }
   
   deleteCategory(id: string): void {
-    if (confirm('Tem certeza que deseja excluir esta categoria?')) {
-      this.shoppingService.deleteShoppingCategory(id);
+    if (confirm('Tem certeza? Produtos usando esta categoria não serão excluídos, mas ficarão sem categoria.')) {
+      this.loadingAction.set(`delete-category-${id}`);
+      this.shoppingService.deleteShoppingCategory(id).pipe(
+        finalize(() => this.loadingAction.set(null))
+      ).subscribe();
     }
   }
 
   startEditCategory(category: ShoppingCategory): void {
     this.editingCategoryId.set(category.id);
-    this.editingCategoryName.set(category.name);
+    this.editCategoryForm.setValue({ name: category.name });
   }
-
-  cancelEditCategory(): void {
-    this.editingCategoryId.set(null);
-    this.editingCategoryName.set('');
-  }
+  cancelEditCategory(): void { this.editingCategoryId.set(null); }
 
   saveCategory(id: string): void {
-    const name = this.editingCategoryName().trim();
-    if (name && id) {
-      this.shoppingService.updateShoppingCategory({ id, name });
-      this.cancelEditCategory();
-    }
+    if (this.editCategoryForm.invalid) return;
+    this.loadingAction.set(`save-category-${id}`);
+    this.shoppingService.updateShoppingCategory({ id, name: this.editCategoryForm.value.name }).pipe(
+      finalize(() => {
+        this.loadingAction.set(null);
+        this.cancelEditCategory();
+      })
+    ).subscribe();
   }
   
-  // --- Product Management Methods ---
   addProduct(): void {
-    const name = this.newProductName().trim();
-    const categoryId = this.newProductCategoryId();
-    const unit = this.newProductUnit();
-    if (name && categoryId) {
-      this.shoppingService.addProduct({ name, categoryId, unit });
-      this.newProductName.set('');
-      this.newProductCategoryId.set('');
-      this.newProductUnit.set('un');
-    }
+    if (this.productForm.invalid) return;
+    this.loadingAction.set('add-product');
+    this.shoppingService.addProduct(this.productForm.value).pipe(
+      finalize(() => this.loadingAction.set(null))
+    ).subscribe(() => this.productForm.reset({ unit: 'un' }));
   }
   
   deleteProduct(id: string): void {
     if (confirm('Tem certeza que deseja excluir este produto?')) {
-      this.shoppingService.deleteProduct(id);
+      this.loadingAction.set(`delete-product-${id}`);
+      this.shoppingService.deleteProduct(id).pipe(
+        finalize(() => this.loadingAction.set(null))
+      ).subscribe();
     }
   }
   
   startEditProduct(product: Product): void {
     this.editingProductId.set(product.id);
-    this.editingProduct.set({...product});
+    this.editProductForm.setValue(product);
   }
-
-  cancelEditProduct(): void {
-    this.editingProductId.set(null);
-    this.editingProduct.set(null);
-  }
+  cancelEditProduct(): void { this.editingProductId.set(null); }
   
   saveProduct(): void {
-    const product = this.editingProduct();
-    // FIX: Replaced 'and' with the correct logical AND operator '&&'.
-    if (product && product.name.trim() && product.categoryId) {
-      this.shoppingService.updateProduct(product);
-      this.cancelEditProduct();
-    }
+    if (this.editProductForm.invalid) return;
+    this.loadingAction.set(`save-product-${this.editProductForm.value.id}`);
+    this.shoppingService.updateProduct(this.editProductForm.value).pipe(
+      finalize(() => {
+        this.loadingAction.set(null);
+        this.cancelEditProduct();
+      })
+    ).subscribe();
   }
 }

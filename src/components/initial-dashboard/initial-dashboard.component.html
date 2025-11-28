@@ -4,7 +4,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
         <!-- Financial Control Card -->
-        <button (click)="navigateTo.emit('financial')" class="group relative block p-8 bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-2 text-left">
+        <a routerLink="/financial" class="group relative block p-8 bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-2 text-left cursor-pointer">
             <div class="relative z-10">
                 <div class="mb-4">
                     <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-indigo-100 text-indigo-600">
@@ -22,10 +22,10 @@
                     </svg>
                 </div>
             </div>
-        </button>
+        </a>
 
         <!-- Shopping List Card -->
-        <button (click)="navigateTo.emit('shopping')" class="group relative block p-8 bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-2 text-left">
+        <a routerLink="/shopping" class="group relative block p-8 bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-2 text-left cursor-pointer">
             <div class="relative z-10">
                  <div class="mb-4">
                     <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 text-emerald-600">
@@ -43,6 +43,6 @@
                     </svg>
                 </div>
             </div>
-        </button>
+        </a>
     </div>
 </div>

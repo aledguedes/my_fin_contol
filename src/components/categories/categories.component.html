@@ -1,21 +1,29 @@
 <div class="space-y-6">
   <div class="bg-white p-6 rounded-lg shadow-md">
     <h2 class="text-2xl font-bold text-neutral-800 mb-4">Gerenciar Categorias</h2>
-    <form (ngSubmit)="addCategory()" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+    <form [formGroup]="categoryForm" (ngSubmit)="addCategory()" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
       <div class="sm:col-span-2">
         <label for="categoryName" class="block text-sm font-medium text-neutral-700">Nome da Categoria</label>
-        <input type="text" id="categoryName" [ngModel]="newCategoryName()" (ngModelChange)="newCategoryName.set($event)" name="categoryName" class="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Ex: Contas de Casa">
+        <input type="text" id="categoryName" formControlName="name" class="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Ex: Contas de Casa">
       </div>
       <div>
         <label for="categoryType" class="block text-sm font-medium text-neutral-700">Tipo</label>
-        <select id="categoryType" [ngModel]="newCategoryType()" (ngModelChange)="newCategoryType.set($event)" name="categoryType" class="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        <select id="categoryType" formControlName="type" class="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
           <option value="expense">Despesa</option>
           <option value="revenue">Receita</option>
         </select>
       </div>
       <div class="sm:col-span-3 sm:text-right">
-        <button type="submit" [disabled]="!newCategoryName()" class="w-full sm:w-auto inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300">
-          Adicionar Categoria
+        <button type="submit" [disabled]="categoryForm.invalid || isSubmitting()" class="w-full sm:w-auto inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300 min-w-[160px]">
+          @if(isSubmitting()) {
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Adicionando...</span>
+          } @else {
+            <span>Adicionar Categoria</span>
+          }
         </button>
       </div>
     </form>
@@ -26,21 +34,37 @@
       <div class="p-4 border-b border-neutral-200">
         <h3 class="text-lg font-semibold text-emerald-700">Categorias de Receita</h3>
       </div>
-      <ul class="divide-y divide-neutral-200">
-        @for(category of getRevenueCategories(); track category.id) {
-          <li class="px-4 py-3">{{ category.name }}</li>
-        }
-      </ul>
+      @if (dataService.revenueCategories().length > 0) {
+        <ul class="divide-y divide-neutral-200">
+          @for(category of dataService.revenueCategories(); track category.id) {
+            <li class="px-4 py-3">{{ category.name }}</li>
+          }
+        </ul>
+      } @else {
+        <div class="text-center p-12 text-neutral-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 10v-1m0 0c-1.11 0-2.08-.402-2.599-1M12 18c-3.866 0-7-1.79-7-4s3.134-4 7-4 7 1.79 7 4-3.134 4-7 4z" /></svg>
+          <p class="mt-4 font-semibold">Nenhuma categoria de receita.</p>
+          <p class="text-sm">Cadastre uma nova categoria de receita para começar.</p>
+        </div>
+      }
     </div>
     <div class="bg-white rounded-lg shadow-md">
       <div class="p-4 border-b border-neutral-200">
         <h3 class="text-lg font-semibold text-rose-700">Categorias de Despesa</h3>
       </div>
-      <ul class="divide-y divide-neutral-200">
-        @for(category of getExpenseCategories(); track category.id) {
-          <li class="px-4 py-3">{{ category.name }}</li>
-        }
-      </ul>
+      @if (dataService.expenseCategories().length > 0) {
+        <ul class="divide-y divide-neutral-200">
+          @for(category of dataService.expenseCategories(); track category.id) {
+            <li class="px-4 py-3">{{ category.name }}</li>
+          }
+        </ul>
+      } @else {
+        <div class="text-center p-12 text-neutral-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H7a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+          <p class="mt-4 font-semibold">Nenhuma categoria de despesa.</p>
+          <p class="text-sm">Cadastre uma nova categoria de despesa para começar.</p>
+        </div>
+      }
     </div>
   </div>
 </div>

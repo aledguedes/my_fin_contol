@@ -1,9 +1,10 @@
-import { Component, ChangeDetectionStrategy, output, signal, computed } from '@angular/core';
+import { Component, ChangeDetectionStrategy, output, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ShoppingService } from '../../services/shopping.service';
 import { CartItem, Product } from '../../models/shopping.model';
 import { CurrencyMaskDirective } from '../../directives/currency-mask.directive';
+import { finalize } from 'rxjs';
 
 @Component({
   selector: 'app-shopping-cart',
@@ -14,117 +15,124 @@ import { CurrencyMaskDirective } from '../../directives/currency-mask.directive'
 export class ShoppingCartComponent {
   completePurchase = output<void>();
 
-  newItem = signal({ productId: '', quantity: 1, price: undefined as number | undefined });
-  viewMode = signal<'list' | 'category'>('list'); // 'list' is the new default
+  shoppingService = inject(ShoppingService);
+
+  viewMode = signal<'list' | 'category'>('list');
   sortDirection = signal<'asc' | 'desc'>('asc');
-
-  constructor(public shoppingService: ShoppingService) {}
   
-  productsByCategory = computed(() => {
-    const products = this.shoppingService.products();
-    const categories = this.shoppingService.shoppingCategories();
-    const grouped: { categoryName: string; products: Product[] }[] = [];
+  // Loading states
+  updatingItemId = signal<string | null>(null);
+  removingItemId = signal<string | null>(null);
 
-    categories.forEach(category => {
-      const productsInCategory = products.filter(p => p.categoryId === category.id);
-      if (productsInCategory.length > 0) {
-        grouped.push({
-          categoryName: category.name,
-          products: productsInCategory.sort((a, b) => a.name.localeCompare(b.name)),
-        });
-      }
-    });
-    return grouped;
-  });
-
+  // Signals for Quick Add Modal
+  isQuickAddModalOpen = signal(false);
+  quickAddSearchTerm = signal('');
+  quickAddSelectedProductIds = signal<string[]>([]);
+  isQuickAdding = signal(false);
+  
   groupedItems = computed(() => {
     const items = this.shoppingService.items();
     const categories = this.shoppingService.shoppingCategories();
-    const grouped: { categoryName: string; items: CartItem[] }[] = [];
-
-    categories.forEach(category => {
-      const itemsInCategory = items.filter(item => item.categoryId === category.id);
-      if (itemsInCategory.length > 0) {
-        grouped.push({
-          categoryName: category.name,
-          items: itemsInCategory.sort((a,b) => a.name.localeCompare(b.name)),
-        });
-      }
-    });
+    const grouped: { categoryName: string; items: CartItem[] }[] = categories.map(category => ({
+      categoryName: category.name,
+      items: items.filter(item => item.categoryId === category.id).sort((a,b) => a.name.localeCompare(b.name)),
+    })).filter(g => g.items.length > 0);
 
     const uncategorizedItems = items.filter(item => !item.categoryId || !categories.some(c => c.id === item.categoryId));
     if (uncategorizedItems.length > 0) {
-      grouped.push({
-        categoryName: 'Sem Categoria',
-        items: uncategorizedItems.sort((a,b) => a.name.localeCompare(b.name)),
-      });
+      grouped.push({ categoryName: 'Sem Categoria', items: uncategorizedItems.sort((a,b) => a.name.localeCompare(b.name)) });
     }
-
     return grouped;
   });
 
   sortedItems = computed(() => {
     const direction = this.sortDirection() === 'asc' ? 1 : -1;
-    return this.shoppingService.items().slice().sort((a, b) => {
-        return a.name.localeCompare(b.name) * direction;
-    });
+    return [...this.shoppingService.items()].sort((a, b) => a.name.localeCompare(b.name) * direction);
   });
   
-  availableProductsForTags = computed(() => {
-    const allProducts = this.shoppingService.products();
-    const itemsInCart = this.shoppingService.items();
-    const productIdsInCart = new Set(itemsInCart.map(item => item.productId));
-    return allProducts.filter(p => !productIdsInCart.has(p.id)).sort((a, b) => a.name.localeCompare(b.name));
+  private availableProducts = computed(() => {
+    const productIdsInCart = new Set(this.shoppingService.items().map(item => item.productId));
+    return this.shoppingService.products().filter(p => !productIdsInCart.has(p.id));
   });
 
-  setViewMode(mode: 'list' | 'category'): void {
-    this.viewMode.set(mode);
-  }
+  groupedAndFilteredQuickAddProducts = computed(() => {
+    const searchTerm = this.quickAddSearchTerm().toLowerCase();
+    const available = this.availableProducts();
 
-  toggleSortDirection(): void {
-    this.sortDirection.update(dir => dir === 'asc' ? 'desc' : 'asc');
-  }
+    const filteredProducts = searchTerm
+      ? available.filter(p => p.name.toLowerCase().includes(searchTerm))
+      : available;
 
-  addItem(): void {
-    const { productId, quantity, price } = this.newItem();
-    if (productId && quantity > 0 && price !== undefined && price >= 0) {
-      this.shoppingService.addItem({ productId, price, quantity });
-      this.newItem.set({ productId: '', quantity: 1, price: undefined });
-    } else {
-        alert('Por favor, selecione um produto e informe a quantidade e o preço.');
-    }
+    const categories = this.shoppingService.shoppingCategories();
+
+    return categories
+      .map(category => ({
+        categoryName: category.name,
+        products: filteredProducts
+          .filter(p => p.categoryId === category.id)
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      }))
+      .filter(g => g.products.length > 0);
+  });
+
+  setViewMode(mode: 'list' | 'category'): void { this.viewMode.set(mode); }
+  toggleSortDirection(): void { this.sortDirection.update(dir => dir === 'asc' ? 'desc' : 'asc'); }
+  
+  toggleQuickAddSelection(productId: string): void {
+    this.quickAddSelectedProductIds.update(ids => {
+      const set = new Set(ids);
+      if (set.has(productId)) {
+        set.delete(productId);
+      } else {
+        set.add(productId);
+      }
+      return Array.from(set);
+    });
   }
   
-  addItemFromTag(product: Product): void {
-    this.shoppingService.addItem({
-      productId: product.id,
-      quantity: 1,
-      price: 0
+  confirmQuickAdd(): void {
+    const selectedIds = this.quickAddSelectedProductIds();
+    if (selectedIds.length === 0) return;
+    
+    this.isQuickAdding.set(true);
+    const itemsToAdd = selectedIds.map(productId => ({ productId, quantity: 1, price: 0 }));
+    
+    this.shoppingService.addMultipleItems(itemsToAdd).pipe(
+      finalize(() => this.isQuickAdding.set(false))
+    ).subscribe(() => {
+      this.quickAddSelectedProductIds.set([]);
+      this.quickAddSearchTerm.set('');
+      this.isQuickAddModalOpen.set(false);
     });
   }
 
-  updateItem(item: CartItem): void {
-    this.shoppingService.updateItem({ ...item });
+  updateItem(item: CartItem, field: 'quantity' | 'price' | 'checked', value: number | boolean): void {
+    if (value === null || value === undefined) return;
+    this.updatingItemId.set(item.id);
+    const updatedItem = { ...item, [field]: value };
+    this.shoppingService.updateItem(updatedItem).pipe(
+      finalize(() => this.updatingItemId.set(null))
+    ).subscribe();
   }
 
-  removeItem(id: string): void {
-    this.shoppingService.removeItem(id);
+  removeItem(id: string): void { 
+    this.removingItemId.set(id);
+    this.shoppingService.removeItem(id).pipe(
+      finalize(() => this.removingItemId.set(null))
+    ).subscribe();
   }
 
-  toggleCheck(id: string): void {
-    this.shoppingService.toggleItemChecked(id);
+  toggleCheck(item: CartItem): void {
+    this.updateItem(item, 'checked', !item.checked);
   }
   
   onCompletePurchase(): void {
-    const total = this.shoppingService.total();
-    if (total > 0) {
+    if (this.shoppingService.total() > 0) {
         if(confirm('Concluir a compra irá arquivar a lista atual e abrir o formulário de lançamento. Deseja continuar?')) {
             this.completePurchase.emit();
         }
     }
   }
-
-  trackById(index: number, item: CartItem): string {
-    return item.id;
-  }
+  
+  trackById(index: number, item: CartItem | Product): string { return item.id; }
 }

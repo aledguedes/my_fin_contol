@@ -6,6 +6,7 @@
   <base href="/" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -32,6 +33,25 @@
       }
     }
   </script>
+<style>
+  .shimmer {
+    background: #f6f7f8;
+    background-image: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+    background-repeat: no-repeat;
+    background-size: 800px 104px; 
+    display: inline-block;
+    position: relative; 
+    animation-duration: 1s;
+    animation-fill-mode: forwards; 
+    animation-iteration-count: infinite;
+    animation-name: placeholderShimmer;
+    animation-timing-function: linear;
+  }
+  @keyframes placeholderShimmer {
+    0% { background-position: -468px 0; }
+    100% { background-position: 468px 0; }
+  }
+</style>
 <script type="importmap">
 {
   "imports": {
@@ -48,7 +68,8 @@
     "@angular/compiler": "https://next.esm.sh/@angular/compiler@^20.3.12?external=rxjs",
     "@angular/common": "https://next.esm.sh/@angular/common@^20.3.12?external=rxjs",
     "@angular/common/http": "https://next.esm.sh/@angular/common@^20.3.12/http?external=rxjs",
-    "@angular/common/locales/pt": "https://next.esm.sh/@angular/common@^20.3.12/locales/pt?external=rxjs"
+    "@angular/common/locales/pt": "https://next.esm.sh/@angular/common@^20.3.12/locales/pt?external=rxjs",
+    "@angular/router": "https://next.esm.sh/@angular/router@^20.3.12?external=rxjs"
   }
 }
 </script>

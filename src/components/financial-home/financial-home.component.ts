@@ -1,10 +1,10 @@
-import { Component, ChangeDetectionStrategy, signal, output, effect } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DashboardComponent } from '../dashboard/dashboard.component';
 import { InstallmentsComponent } from '../installments/installments.component';
 import { CategoriesComponent } from '../categories/categories.component';
-import { Transaction } from '../../models/transaction.model';
 import { DataService } from '../../services/data.service';
+import { UiService } from '../../services/ui.service';
 
 @Component({
   selector: 'app-financial-home',
@@ -16,10 +16,10 @@ import { DataService } from '../../services/data.service';
 export class FinancialHomeComponent {
   activeView = signal<'dashboard' | 'installments' | 'categories'>('dashboard');
 
-  openTransactionModal = output<Partial<Transaction> | null>();
-  editTransaction = output<Transaction>();
+  private dataService = inject(DataService);
+  private uiService = inject(UiService);
 
-  constructor(private dataService: DataService) {
+  constructor() {
     effect(() => {
       if (this.dataService.navigateToInstallments()) {
         this.setView('installments');
@@ -33,6 +33,6 @@ export class FinancialHomeComponent {
   }
 
   onNewTransaction(): void {
-    this.openTransactionModal.emit(null);
+    this.uiService.openTransactionModal(null);
   }
 }
