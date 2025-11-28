@@ -115,14 +115,14 @@ export const MOCK_PRODUCTS: Product[] = [
 
 export const MOCK_SHOPPING_LISTS: ShoppingList[] = [
     {
-        id: 'sl1', name: 'Compras da Semana', status: 'andamento', createdAt: '2024-07-22',
+        id: 'sl1', name: 'Compras da Semana', status: 'pending', createdAt: '2024-07-22',
         items: [
             { id: 'i1', productId: 'p1', name: 'Arroz Integral 5kg', quantity: 1, price: 25.50, checked: true, categoryId: 'sc1', unit: 'un' },
             { id: 'i2', productId: 'p4', name: 'Maçã', quantity: 1.5, price: 8.99, checked: false, categoryId: 'sc3', unit: 'kg' },
         ]
     },
     {
-        id: 'sl2', name: 'Compras de Junho', status: 'finalizada', createdAt: '2024-06-15', completedAt: '2024-06-16', totalAmount: 157.80,
+        id: 'sl2', name: 'Compras de Junho', status: 'completed', createdAt: '2024-06-15', completedAt: '2024-06-16', totalAmount: 157.80,
         items: []
     }
 ];

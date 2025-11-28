@@ -2,6 +2,9 @@ export interface Category {
   id: string;
   name: string;
   type: 'revenue' | 'expense';
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type PaymentMethod = 'Dinheiro' | 'Débito' | 'Crédito' | 'Carnê' | 'Boleto' | 'Transferência' | 'Financiamento' | 'Empréstimo';
@@ -23,6 +26,10 @@ export interface Transaction {
   isInstallment: boolean;
   isRecurrent?: boolean;
   installments?: InstallmentDetails;
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  recurrenceStartDate?: string;
 }
 
 // This is a derived model, not stored directly. Represents one installment payment.
@@ -57,6 +64,8 @@ export interface InstallmentPlan {
 
 // Fix: Add MonthlyView interface to be exported as a model
 export interface MonthlyView {
+  year: number;
+  month: number;
   transactions: Transaction[];
   summary: {
     totalRevenue: number;

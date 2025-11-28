@@ -4,13 +4,13 @@ import { Observable, forkJoin, of, throwError } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { CartItem, ShoppingCategory, ShoppingList, Product } from '../models/shopping.model';
 import { NotificationService } from './notification.service';
+import { environment } from '../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class ShoppingService {
-  // Fix: Explicitly type the injected HttpClient to resolve property access errors.
   private http: HttpClient = inject(HttpClient);
   private notificationService = inject(NotificationService);
-  private apiUrl = '/api/v1/shopping';
+  private apiUrl = `${environment.apiUrl}/shopping`;
 
   // State signals
   shoppingLists = signal<ShoppingList[]>([]);
@@ -31,11 +31,8 @@ export class ShoppingService {
 
   loadInitialData(): Observable<any> {
     return forkJoin({
-      // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
       lists: this.http.get<ShoppingList[]>(`${this.apiUrl}/lists`),
-      // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
       categories: this.http.get<ShoppingCategory[]>(`${this.apiUrl}/categories`),
-      // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
       products: this.http.get<Product[]>(`${this.apiUrl}/products`),
     }).pipe(
       tap(data => {
@@ -51,7 +48,6 @@ export class ShoppingService {
   }
 
   createList(name: string, initialProductIds: string[] = []): Observable<ShoppingList> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.post<ShoppingList>(`${this.apiUrl}/lists`, { name, items: initialProductIds }).pipe(
       tap(newList => {
         this.shoppingLists.update(lists => [...lists, newList]);
@@ -90,7 +86,6 @@ export class ShoppingService {
   }
 
   private loadAndSetActiveList(listId: string): void {
-      // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
       this.http.get<ShoppingList>(`${this.apiUrl}/lists/${listId}`).subscribe(listDetails => {
           this.shoppingLists.update(lists => lists.map(l => l.id === listId ? listDetails : l));
           this.activeListId.set(listId);
@@ -98,10 +93,24 @@ export class ShoppingService {
   }
 
   syncList(list: ShoppingList): Observable<ShoppingList> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
-    return this.http.put<ShoppingList>(`${this.apiUrl}/lists/${list.id}`, list).pipe(
+    const payload = {
+      list: {
+        name: list.name,
+        status: list.status,
+        items: list.items.map(item => ({
+          id: item.id,
+          quantity: item.quantity,
+          price: item.price,
+          checked: item.checked,
+          product_id: item.productId,
+        })),
+      },
+    };
+
+    return this.http.put<ShoppingList>(`${this.apiUrl}/lists/${list.id}`, payload).pipe(
       tap(() => {
         localStorage.removeItem(`shopping_list_draft_${list.id}`);
+        this.notificationService.show('Alterações salvas com sucesso!', 'success');
       }),
       catchError(err => {
         this.notificationService.show('Falha ao sincronizar com o servidor. Suas alterações continuam salvas localmente.', 'error');
@@ -111,7 +120,6 @@ export class ShoppingService {
   }
 
   deleteList(listId: string): Observable<void> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.delete<void>(`${this.apiUrl}/lists/${listId}`).pipe(
         tap(() => {
             this.shoppingLists.update(lists => lists.filter(l => l.id !== listId));
@@ -125,11 +133,11 @@ export class ShoppingService {
   completeActiveList(): Observable<any> {
     const list = this.activeList();
     if (!list) return of(null);
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
-    return this.http.post(`${this.apiUrl}/lists/${list.id}/complete`, {}).pipe(
+    // Fix: Explicitly type the HTTP post request to avoid type inference issues.
+    return this.http.post<object>(`${this.apiUrl}/lists/${list.id}/complete`, {}).pipe(
       tap(() => {
         this.shoppingLists.update(lists =>
-          lists.map(l => l.id === list.id ? { ...l, status: 'finalizada' } : l)
+          lists.map(l => l.id === list.id ? { ...l, status: 'completed' } : l)
         );
         this.setActiveList(null);
         this.notificationService.show(`Lista "${list.name}" finalizada!`, 'success');
@@ -138,7 +146,6 @@ export class ShoppingService {
   }
 
   addShoppingCategory(name: string): Observable<ShoppingCategory> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.post<ShoppingCategory>(`${this.apiUrl}/categories`, { name }).pipe(
       tap(newCategory => {
         this.shoppingCategories.update(categories => [...categories, newCategory]);
@@ -147,19 +154,17 @@ export class ShoppingService {
   }
 
   updateShoppingCategory(category: ShoppingCategory): Observable<ShoppingCategory> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.put<ShoppingCategory>(`${this.apiUrl}/categories/${category.id}`, category).pipe(
-      tap(updatedCategory => {
+      // Fix: Explicitly type the response to resolve property access errors.
+      tap((updatedCategory: ShoppingCategory) => {
         this.shoppingCategories.update(c => c.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat));
       })
     );
   }
 
   deleteShoppingCategory(id: string): Observable<void> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.delete<void>(`${this.apiUrl}/categories/${id}`).pipe(
       tap(() => {
-        // Fix: Completed the filter function
         this.shoppingCategories.update(categories => categories.filter(c => c.id !== id));
         this.notificationService.show('Categoria de compra excluída!', 'success');
       }),
@@ -171,7 +176,6 @@ export class ShoppingService {
   }
 
   addProduct(productData: Omit<Product, 'id'>): Observable<Product> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.post<Product>(`${this.apiUrl}/products`, productData).pipe(
       tap(newProduct => {
         this.products.update(products => [...products, newProduct].sort((a, b) => a.name.localeCompare(b.name)));
@@ -185,7 +189,6 @@ export class ShoppingService {
   }
 
   updateProduct(product: Product): Observable<Product> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.put<Product>(`${this.apiUrl}/products/${product.id}`, product).pipe(
       tap(updatedProduct => {
         this.products.update(products => 
@@ -201,7 +204,6 @@ export class ShoppingService {
   }
 
   deleteProduct(id: string): Observable<void> {
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.delete<void>(`${this.apiUrl}/products/${id}`).pipe(
       tap(() => {
         this.products.update(products => products.filter(p => p.id !== id));
@@ -218,9 +220,9 @@ export class ShoppingService {
     const activeId = this.activeListId();
     if (!activeId) return throwError(() => new Error('No active list'));
 
-    // Fix: Corrected property access from `this->apiUrl` to `this.apiUrl`.
     return this.http.post<CartItem[]>(`${this.apiUrl}/lists/${activeId}/items`, itemsData).pipe(
-      tap(newItems => {
+      // Fix: Explicitly type the response to resolve property access errors.
+      tap((newItems: CartItem[]) => {
         this.shoppingLists.update(lists => lists.map(l => {
           if (l.id === activeId) {
             return { ...l, items: [...l.items, ...newItems] };

@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { NotificationService } from './notification.service';
+import { environment } from '../environments/environment';
 
 const AUTH_TOKEN_KEY = 'myfin_auth_token';
 
@@ -15,7 +16,7 @@ export class AuthService {
   private http: HttpClient = inject(HttpClient);
   private router = inject(Router);
   private notificationService = inject(NotificationService);
-  private apiUrl = '/api/v1/auth';
+  private apiUrl = `${environment.apiUrl}/auth`;
 
   private token = signal<string | null>(localStorage.getItem(AUTH_TOKEN_KEY));
 
@@ -68,7 +69,8 @@ export class AuthService {
   login(user: string, pass: string): Observable<{ token: string } | null> {
     return this.http.post<{ token: string }>(`${this.apiUrl}/login`, { username: user, password: pass })
       .pipe(
-        tap(response => {
+        // Fix: Explicitly type the response to resolve property access errors.
+        tap((response: { token: string }) => {
           localStorage.setItem(AUTH_TOKEN_KEY, response.token);
           this.token.set(response.token);
         }),
@@ -81,7 +83,8 @@ export class AuthService {
   loginWithGoogle(credential: string): Observable<{ token: string } | null> {
     return this.http.post<{ token: string }>(`${this.apiUrl}/google-login`, { credential })
       .pipe(
-        tap(response => {
+        // Fix: Explicitly type the response to resolve property access errors.
+        tap((response: { token: string }) => {
           localStorage.setItem(AUTH_TOKEN_KEY, response.token);
           this.token.set(response.token);
         }),
