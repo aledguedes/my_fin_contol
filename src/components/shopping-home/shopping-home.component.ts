@@ -116,6 +116,9 @@ export class ShoppingHomeComponent implements OnInit {
   handleCompletePurchase(): void {
     const activeList = this.shoppingService.activeList();
     if (!activeList) return;
+    
+    localStorage.removeItem(`shopping_list_draft_${activeList.id}`);
+    
     this.loadingAction.set('complete-purchase');
     this.shoppingService.completeActiveList().pipe(
       finalize(() => this.loadingAction.set(null))

@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
@@ -13,6 +13,7 @@ import { finalize } from 'rxjs';
 export class CategoriesComponent {
   dataService = inject(DataService);
   isSubmitting = signal(false);
+  backToPanel = output<void>();
 
   categoryForm = new FormGroup({
     name: new FormControl('', [Validators.required]),

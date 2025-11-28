@@ -217,11 +217,24 @@ export const mockApiInterceptor: HttpInterceptorFn = (
     if (url.endsWith(`${API_PREFIX}/shopping/lists`) && method === 'GET') return response(shoppingLists.map(({ items, ...list }) => list)); // Return summary
     if (url.match(`${API_PREFIX}/shopping/lists/`) && !url.includes('items') && !url.includes('complete')) {
         const id = url.split('/').pop()!;
-        const list = shoppingLists.find(l => l.id === id);
-        if (method === 'GET') return list ? response(list) : error('List not found', 404);
+        if (method === 'GET') {
+            const list = shoppingLists.find(l => l.id === id);
+            return list ? response(list) : error('List not found', 404);
+        }
         if (method === 'DELETE') {
             shoppingLists = shoppingLists.filter(l => l.id !== id);
             return response(null, 204);
+        }
+        if (method === 'PUT') {
+            let updatedList: ShoppingList | undefined;
+            shoppingLists = shoppingLists.map(l => {
+                if (l.id === id) {
+                    updatedList = { ...body, id }; // O body é o objeto da lista completa
+                    return updatedList;
+                }
+                return l;
+            });
+            return updatedList ? response(updatedList) : error('List not found', 404);
         }
     }
     if (url.endsWith(`${API_PREFIX}/shopping/lists`) && method === 'POST') {
